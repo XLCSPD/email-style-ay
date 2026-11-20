@@ -1,0 +1,15 @@
+{
+  "name": "email-style",
+  "private": true,
+  "description": "D.E. Foxx Email Style: an Outlook add-in that restyles outgoing email and meeting invites in the D.E. Foxx or Versatex look on Send",
+  "type": "module",
+  "scripts": {
+    "validate": "office-addin-manifest validate site/manifest.xml",
+    "start": "node server.mjs",
+    "test": "node tests/run-all.cjs"
+  },
+  "devDependencies": {
+    "office-addin-dev-certs": "^3.0.1",
+    "office-addin-manifest": "^3.0.1"
+  }
+}
