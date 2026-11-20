@@ -69,3 +69,80 @@ report("reply fields are escaped", !/<b>x<\/b>|<img src=x/.test(nasty));
 
 const junk = engine({ ...BASE, replyName: 5, replyTagline: null, replyLook: "weird", replyWhen: {} });
 report("malformed saved values fall back safely", !hasPersonal(own(junk.applyVersatexStyle(html("Thanks", quote(fullSig))))));
+
+// ---- Per-email choice: [simple] / [formal] in the subject ----
+const ok = (value) => ({ status: "succeeded", value });
+function mailbox(subject, body) {
+  const state = { subject, body, notices: [] };
+  state.item = {
+    subject: { getAsync: (cb) => cb(ok(state.subject)), setAsync: (v, cb) => { state.subject = v; cb(ok()); } },
+    body: {
+      getTypeAsync: (cb) => cb(ok("html")),
+      getAsync: (_t, cb) => cb(ok(state.body)),
+      setAsync: (v, _o, cb) => { state.body = v; cb(ok()); },
+    },
+    getAttachmentsAsync: (cb) => cb(ok([])),
+    notificationMessages: { replaceAsync: (_k, m, cb) => { state.notices.push(m.message); cb(ok()); } },
+  };
+  return state;
+}
+function live(state, signature = mine) {
+  const roaming = { vstxSignature: signature };
+  const Office = {
+    actions: { associate() {} },
+    AsyncResultStatus: { Succeeded: "succeeded" },
+    CoercionType: { Html: "html", Text: "text" },
+    MailboxEnums: { SendModeOverride: { PromptUser: "promptUser" }, ItemNotificationMessageType: { InformationalMessage: "info" } },
+    context: { roamingSettings: { get: (key) => roaming[key] }, requirements: { isSetSupported: () => true }, mailbox: { item: state.item } },
+  };
+  const context = { Office, Promise, String };
+  vm.createContext(context);
+  vm.runInContext(source, context);
+  return context;
+}
+const send = (state, signature) => new Promise((resolve) => live(state, signature).onMessageSendHandler({ completed: resolve }));
+const preview = (state) => new Promise((resolve) => live(state).previewStyle({ completed: resolve }));
+
+(async () => {
+  let s = mailbox("[simple] Lunch Friday", html("Are you free?"));
+  let r = await send(s);
+  report("[simple] on a new email -> personal signature", r.allowEvent === true && hasPersonal(s.body) && !hasFullPanel(s.body));
+  report("[simple] is removed from the subject", s.subject === "Lunch Friday");
+
+  s = mailbox("RE: Budget [FORMAL]", html("Approved.", quote(fullSig)));
+  r = await send(s);
+  report("[formal] on a reply in a signed thread -> full panel", r.allowEvent === true && hasFullPanel(own(s.body)) && !hasPersonal(own(s.body)));
+  report("[formal] is removed from the subject, any case", s.subject === "RE: Budget");
+
+  s = mailbox("Lunch Friday", html("Are you free?"));
+  await send(s);
+  report("no tag -> defaults unchanged (new email, full panel)", hasFullPanel(s.body));
+
+  s = mailbox("[simple] Lunch", html("Are you free?"));
+  await send(s, BASE);
+  report("[simple] with no personal signature set -> the standard one-line signature", s.body.includes("vstx-signature-short") && !hasPersonal(s.body) && s.body.includes(">CITO<"));
+
+  s = mailbox("Lunch Friday", html("Are you free?"));
+  await preview(s);
+  const hadFull = hasFullPanel(s.body);
+  s.subject = "[simple] Lunch Friday";
+  await send(s);
+  report("a full signature already in the draft is swapped by [simple]", hadFull && hasPersonal(s.body) && !hasFullPanel(s.body) && (s.body.match(/id="vstx-signature"/g) || []).length === 1);
+  report("the swap keeps the text and the brand bar", s.body.includes("Are you free?") && (s.body.match(/id="vstx-bar"/g) || []).length === 1);
+
+  s = mailbox("[simple] Lunch Friday", html("Are you free?"));
+  await preview(s);
+  report("Apply email style honours the tag and leaves the subject alone", hasPersonal(s.body) && s.subject === "[simple] Lunch Friday");
+  const before = s.body;
+  await send(s);
+  report("sending after that preview keeps the same signature", hasPersonal(s.body) && (s.body.match(/id="vstx-signature"/g) || []).length === 1 && s.subject === "Lunch Friday" && s.body.includes("Are you free?") && before.includes("Are you free?"));
+
+  s = mailbox("[plain] [simple] Note", html("As typed."));
+  await send(s);
+  report("[plain] still wins: nothing styled, tags cleared", !s.body.includes("vstx-signature") && s.subject === "Note");
+
+  s = mailbox("[simple] [review] Draft", html("Check me."));
+  r = await send(s);
+  const second = await send(s);
+  report("[simple] with [review]: held once, then sent with the personal signature", r.allowEvent === false && second.allowEvent === true && hasPersonal(s.body) && s.subject === "Draft");
+})();

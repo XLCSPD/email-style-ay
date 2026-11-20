@@ -65,7 +65,15 @@ var BADGE_CSS =
 var NUMBERED_TEXT_CSS = BODY_TEXT + ";vertical-align:top;padding:0 0 8px";
 var REVIEW_TAG = /\[review\]/i;
 var PLAIN_TAG = /\[plain\]/i;
-var CONTROL_TAGS = /\[(?:review|plain)\]/gi;
+var CONTROL_TAGS = /\[(?:review|plain|simple|formal)\]/gi;
+// A.Y. edition: [simple] or [formal] in the subject picks the signature for this one email, whatever the defaults say.
+var SIMPLE_TAG = /\[simple\]/i;
+var FORMAL_TAG = /\[formal\]/i;
+
+function signatureChoice(subject) {
+  if (FORMAL_TAG.test(subject || "")) return "formal";
+  return SIMPLE_TAG.test(subject || "") ? "simple" : "";
+}
 var TEXT_TAGS = /<(\/?)(table|p|li|div|span|font|td|th|h[1-6])\b([^>]*)>/gi;
 var BLOCK_TAGS = /^(p|li|div)$/;
 var HEADING_TAGS = /^h[1-6]$/;
@@ -1329,20 +1337,26 @@ function textStart(ownPart) {
 }
 
 // Returns the restyled email and whether this send added the frame (false when it only re-tidied the text).
-function styleEmail(html) {
+// choice is "simple", "formal" or empty (the defaults decide).
+function styleEmail(html, choice) {
   var quoteStart = findQuoteStart(html);
   var ownPart = html.slice(0, quoteStart);
   var quoted = html.slice(quoteStart);
   var signatureAt = signatureStart(ownPart);
+  var details = signatureDetails();
+  var chosen = choice === "simple" ? shortSignatureHtml(details) : choice === "formal" ? signatureHtml(details) : "";
   if (signatureAt !== -1) {
     var from = Math.min(textStart(ownPart), signatureAt);
+    var existing = ownPart.slice(signatureAt);
+    // A signature already in the draft (from Apply email style) is swapped when the subject asks for the other one.
+    var tableEnd = existing.indexOf("</table>");
+    if (chosen && tableEnd !== -1) existing = chosen + existing.slice(tableEnd + "</table>".length);
     return {
-      html: ownPart.slice(0, from) + safeRestyle(ownPart.slice(from, signatureAt)) + ownPart.slice(signatureAt) + quoted,
+      html: ownPart.slice(0, from) + safeRestyle(ownPart.slice(from, signatureAt)) + existing + quoted,
       framed: false,
     };
   }
-  var details = signatureDetails();
-  var signature = usesShortSignature(details, quoted) ? shortSignatureHtml(details) : signatureHtml(details);
+  var signature = chosen || (usesShortSignature(details, quoted) ? shortSignatureHtml(details) : signatureHtml(details));
   return {
     html: insertAfterBodyTag(safeRestyle(ownPart), brandBarHtml()) + signature + quoted,
     framed: true,
@@ -1365,7 +1379,7 @@ function callAsync(invoke) {
 }
 
 // Resolves to "styled" (frame added), "refreshed" (text re-tidied), "unchanged" or "plain-text".
-function restyleCurrentItem() {
+function restyleCurrentItem(choice) {
   var body = Office.context.mailbox.item.body;
   return callAsync(function (done) {
     body.getTypeAsync(done);
@@ -1374,7 +1388,7 @@ function restyleCurrentItem() {
     return callAsync(function (done) {
       body.getAsync(Office.CoercionType.Html, done);
     }).then(function (html) {
-      var result = styleEmail(html);
+      var result = styleEmail(html, choice);
       if (result.html === html) return "unchanged";
       return callAsync(function (done) {
         body.setAsync(result.html, { coercionType: Office.CoercionType.Html }, done);
@@ -1450,7 +1464,7 @@ function onMessageSendHandler(event) {
   })
     .then(function (value) {
       subject = value || "";
-      return PLAIN_TAG.test(subject) ? "skipped" : restyleCurrentItem();
+      return PLAIN_TAG.test(subject) ? "skipped" : restyleCurrentItem(signatureChoice(subject));
     })
     .then(function (status) {
       var cleanSubject = withoutControlTags(subject);
@@ -1579,7 +1593,16 @@ var PREVIEW_MESSAGES = {
 };
 
 function previewStyle(event) {
-  restyleCurrentItem()
+  // The subject's [simple] or [formal] tag counts here too, so the button shows the signature Send will use.
+  callAsync(function (done) {
+    Office.context.mailbox.item.subject.getAsync(done);
+  })
+    .catch(function () {
+      return "";
+    })
+    .then(function (subject) {
+      return restyleCurrentItem(signatureChoice(subject));
+    })
     .then(function (status) {
       return notify(PREVIEW_MESSAGES[status]);
     })
