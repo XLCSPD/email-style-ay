@@ -94,6 +94,47 @@ var QUOTE_MARKERS = [
   /<div[^>]*>\s*<span[^>]*>\s*_{20,}/i,
   /<div[^>]*\bclass=["']?[^"'>]*\bme-email-/i,
 ];
+// A.Y. edition: how other Outlook apps (Mac, phone, classic) and common mail apps open the quoted message.
+var REPLY_MARKERS = [
+  /<div[^>]*\bid=["']?(?:x_)*divRplyFwdMsg\b/i,
+  /<div[^>]*\bid=["']?(?:x_)*mail-editor-reference-message-container\b/i,
+  /<div[^>]*\bclass=["']?[^"'>]*\bms-outlook-mobile-reference-message\b/i,
+  /<div[^>]*border-top:\s*solid\s+#[0-9a-f]{6}\s+1\.0pt/i,
+  /<div[^>]*\bclass=["']?[^"'>]*\bgmail_quote\b/i,
+  /<(?:div|p)\b[^>]*>(?:\s|&nbsp;|<[^>]+>)*-{2,}\s*Original Message\s*-{2,}/i,
+];
+// Whatever the app, a quoted message opens with its header lines: From, then Sent or Date, then To or Subject.
+var REPLY_HEADER_LINES = /(?:^|[>\s;])From:(?:\s|&nbsp;|<)[\s\S]{0,1500}?(?:Sent|Date):(?:\s|&nbsp;|<)[\s\S]{0,2500}?(?:To:(?:\s|&nbsp;|<)[\s\S]{0,4000}?Subject:|Subject:(?:\s|&nbsp;|<)[\s\S]{0,600}?To:)(?:\s|&nbsp;|<)/i;
+var WRAPPER_BEFORE = /<(?:div|p|span|font|b|strong|blockquote|table|tbody|tr|td)\b[^>]*>\s*$/i;
+
+// The header's own wrappers (a bordered box, a bold tag) belong to the quoted message, so the cut goes before them.
+function headerBlockStart(html, at) {
+  var start = at;
+  for (;;) {
+    var wrapper = WRAPPER_BEFORE.exec(html.slice(0, start));
+    if (!wrapper) return start;
+    start = wrapper.index;
+  }
+}
+
+function insideTag(html, at) {
+  return html.lastIndexOf("<", at) > html.lastIndexOf(">", at);
+}
+
+// Where a reply's or forward's quoted message starts, or -1 for an email with none.
+function replyStart(html) {
+  var start = -1;
+  REPLY_MARKERS.forEach(function (marker) {
+    var match = marker.exec(html);
+    if (match && (start === -1 || match.index < start)) start = match.index;
+  });
+  var header = REPLY_HEADER_LINES.exec(html);
+  if (header && !insideTag(html, header.index)) {
+    var headerAt = headerBlockStart(html, header.index + header[0].indexOf("From:"));
+    if (start === -1 || headerAt < start) start = headerAt;
+  }
+  return start;
+}
 
 function escapeHtml(text) {
   return String(text)
@@ -109,6 +150,8 @@ function findQuoteStart(html) {
     var match = marker.exec(html);
     if (match && (start === -1 || match.index < start)) start = match.index;
   });
+  var reply = replyStart(html);
+  if (reply !== -1 && (start === -1 || reply < start)) start = reply;
   if (start !== -1) return start;
   var bodyEnd = html.search(/<\/body>/i);
   return bodyEnd === -1 ? html.length : bodyEnd;
@@ -1274,10 +1317,8 @@ function personalReplyHtml(details) {
 }
 
 // Replies and forwards carry Outlook's own header block above the quoted message; a Teams joining block doesn't.
-var REPLY_HEADER = /<div[^>]*\bid=["']?(?:x_)*divRplyFwdMsg\b|<div[^>]*border-top:\s*solid\s+#E1E1E1/i;
-
 function isReplyOrForward(quoted) {
-  return REPLY_HEADER.test(quoted);
+  return replyStart(quoted) !== -1;
 }
 
 function usesShortSignature(details, quoted) {

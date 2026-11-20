@@ -146,3 +146,33 @@ const preview = (state) => new Promise((resolve) => live(state).previewStyle({ c
   const second = await send(s);
   report("[simple] with [review]: held once, then sent with the personal signature", r.allowEvent === false && second.allowEvent === true && hasPersonal(s.body) && s.subject === "Draft");
 })();
+
+// ---- Quoted message found in other mail apps, so the signature sits under the reply, not under the thread ----
+{
+  const wrapBody = (ownText, quotedHtml) => `<html><head></head><body><div style="font-family:Aptos;font-size:12pt">${ownText}</div><div><br></div>${quotedHtml}</body></html>`;
+  const header = '<b>From: </b>Lawali, Mahamadou &lt;m@x.com&gt;<br><b>Date: </b>Friday, November 20, 2026 at 9:48 AM<br><b>To: </b>Sasore, Ayodele &lt;a@x.com&gt;<br><b>Subject: </b>Re: Catalog';
+  const earlier = '<div>Earlier message body QUOTEDTEXT</div>';
+  const cases = {
+    "new Outlook for Mac container": `<div id="mail-editor-reference-message-container"><div class="ms-outlook-mobile-reference-message skipProofing" style="padding:3.0pt 0in 0in 0in;border-top:solid #B5C4DF 1.0pt">${header}</div>${earlier}</div>`,
+    "Mac/classic bordered header box": `<div style="border:none;border-top:solid #B5C4DF 1.0pt;padding:3.0pt 0in 0in 0in"><p class="MsoNormal"><b><span style="font-size:12.0pt;color:black">From: </span></b><span>Lawali</span><br><b>Date: </b>Friday<br><b>To: </b>A.Y.<br><b>Subject: </b>Re: Catalog</p></div>${earlier}`,
+    "bare header lines, no known marker": `<div><p><b><span>From:</span></b><span> Lawali</span></p><p><b>Sent:</b> Friday</p><p><b>To:</b> A.Y.</p><p><b>Subject:</b> Re: Catalog</p></div>${earlier}`,
+    "Original Message divider": `<div>-----Original Message-----</div><div>From: Lawali<br>Sent: Friday<br>To: A.Y.<br>Subject: Re</div>${earlier}`,
+    "Gmail-style forward": `<div class="gmail_quote"><div>---------- Forwarded message ---------<br>From: <b>Lawali</b><br>Date: Fri<br>Subject: Re<br>To: A.Y.</div>${earlier}</div>`,
+  };
+  const eng = engine({ ...mine, replyWhen: "always" });
+  for (const [name, quotedHtml] of Object.entries(cases)) {
+    const input = wrapBody("My reply REPLYTEXT", quotedHtml);
+    const out = eng.applyVersatexStyle(input);
+    const sigAt = out.indexOf('id="vstx-signature"');
+    const replyAt = out.indexOf("REPLYTEXT");
+    const fromAt = out.indexOf("From:");
+    const quotedAt = out.indexOf("QUOTEDTEXT");
+    report(`${name}: signature sits between the reply and the quoted message`, replyAt !== -1 && replyAt < sigAt && sigAt < fromAt && fromAt < quotedAt, `${replyAt}/${sigAt}/${fromAt}/${quotedAt}`);
+    report(`${name}: quoted message is left exactly as it was`, out.endsWith(input.slice(input.indexOf(quotedHtml))));
+    report(`${name}: counts as a reply for the personal signature`, hasPersonal(out));
+  }
+  const trip = eng.applyVersatexStyle(wrapBody("Flight details. From: Cincinnati. Date: Friday. To: Albany.", ""));
+  report("From/Date/To typed in my own text is not mistaken for a quoted message", hasFullPanel(trip) && trip.indexOf("Albany") < trip.indexOf('id="vstx-signature"'));
+  const attr = eng.applyVersatexStyle(wrapBody('See <a href="https://x.com/?q=From: a Sent: b To: c Subject: d" title="From: a Sent: b To: c Subject: d">link</a> AFTERLINK', ""));
+  report("header words inside a link's attributes are ignored", attr.indexOf("AFTERLINK") < attr.indexOf('id="vstx-signature"'));
+}
