@@ -176,3 +176,36 @@ const preview = (state) => new Promise((resolve) => live(state).previewStyle({ c
   const attr = eng.applyVersatexStyle(wrapBody('See <a href="https://x.com/?q=From: a Sent: b To: c Subject: d" title="From: a Sent: b To: c Subject: d">link</a> AFTERLINK', ""));
   report("header words inside a link's attributes are ignored", attr.indexOf("AFTERLINK") < attr.indexOf('id="vstx-signature"'));
 }
+
+// ---- Toolbar buttons: Formal signature / Simple sign-off ----
+(async () => {
+  const manifest = fs.readFileSync(require("node:path").join(require("node:path").dirname(process.argv[2]), "manifest.xml"), "utf8");
+  const wired = [...manifest.matchAll(/<Control xsi:type="Button" id="([^"]+)">[\s\S]*?<Action xsi:type="\w+">\s*<(?:FunctionName|SourceLocation)[^>]*>?([^<]*)/g)].map((m) => m[1] + ":" + m[2]);
+  report("manifest has both buttons on emails and on meeting invites", ["vstxFormalButton:useFormalSignature", "vstxSimpleButton:useSimpleSignature", "vstxMeetingFormalButton:useFormalSignature", "vstxMeetingSimpleButton:useSimpleSignature"].every((b) => wired.includes(b)), wired.join(" "));
+  report("both button functions are registered", /associate\("useFormalSignature"/.test(source) && /associate\("useSimpleSignature"/.test(source));
+  report("every label and tooltip the buttons name is defined", [...manifest.matchAll(/resid="([^"]+)"/g)].every((m) => manifest.includes('id="' + m[1] + '"')));
+
+  const press = (state, name) => new Promise((resolve) => live(state)[name]({ completed: resolve }));
+  const count = (body) => (body.match(/id="vstx-signature"/g) || []).length;
+
+  let s = mailbox("Lunch Friday", html("Are you free?"));
+  await press(s, "useSimpleSignature");
+  report("Simple sign-off on a new email -> personal signature, subject untouched", hasPersonal(s.body) && !hasFullPanel(s.body) && s.subject === "Lunch Friday" && /Simple sign-off applied/.test(s.notices.join()));
+  let r = await send(s);
+  report("Send keeps the signature the button chose", r.allowEvent === true && hasPersonal(s.body) && !hasFullPanel(s.body) && count(s.body) === 1);
+
+  await press(s, "useFormalSignature");
+  report("Formal signature swaps it back, still one signature", hasFullPanel(s.body) && !hasPersonal(s.body) && count(s.body) === 1 && s.body.includes("Are you free?"));
+  await press(s, "useSimpleSignature");
+  await press(s, "useSimpleSignature");
+  report("pressing a button twice changes nothing more", hasPersonal(s.body) && count(s.body) === 1 && (s.body.match(/id="vstx-bar"/g) || []).length === 1);
+
+  s = mailbox("RE: Budget", html("Approved.", quote(fullSig)));
+  await press(s, "useFormalSignature");
+  await send(s);
+  report("Formal signature on a reply in a signed thread survives Send", hasFullPanel(own(s.body)) && !hasPersonal(own(s.body)) && count(own(s.body)) === 1);
+
+  s = mailbox("RE: Budget", html("Approved.", quote(fullSig)));
+  await send(s);
+  report("no button pressed -> the default still applies (reply gets the personal signature)", hasPersonal(own(s.body)));
+})();

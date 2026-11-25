@@ -1633,6 +1633,32 @@ var PREVIEW_MESSAGES = {
   "plain-text": "This is a plain-text email, so the email style isn't applied.",
 };
 
+// A.Y. edition: toolbar buttons that style the draft now with one signature or the other. Send then keeps it.
+var CHOICE_MESSAGES = { formal: "Formal signature applied.", simple: "Simple sign-off applied." };
+
+function applyWithSignature(choice, event) {
+  restyleCurrentItem(choice)
+    .then(function (status) {
+      return notify(status === "plain-text" ? PREVIEW_MESSAGES[status] : CHOICE_MESSAGES[choice]);
+    })
+    .catch(function (error) {
+      return notify("Couldn't restyle: " + describeError(error)).catch(function () {
+        return undefined;
+      });
+    })
+    .then(function () {
+      event.completed();
+    });
+}
+
+function useFormalSignature(event) {
+  applyWithSignature("formal", event);
+}
+
+function useSimpleSignature(event) {
+  applyWithSignature("simple", event);
+}
+
 function previewStyle(event) {
   // The subject's [simple] or [formal] tag counts here too, so the button shows the signature Send will use.
   callAsync(function (done) {
@@ -1661,5 +1687,7 @@ function previewStyle(event) {
 if (typeof VSTX_SETTINGS_PANE === "undefined") {
   Office.actions.associate("onMessageSendHandler", onMessageSendHandler);
   Office.actions.associate("previewStyle", previewStyle);
+  Office.actions.associate("useFormalSignature", useFormalSignature);
+  Office.actions.associate("useSimpleSignature", useSimpleSignature);
   Office.actions.associate("onNewComposeHandler", onNewComposeHandler);
 }

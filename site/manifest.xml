@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0" xsi:type="MailApp">
   <Id>85d564b9-ed0f-43e8-9671-4cc3df874679</Id>
-  <Version>1.0.0.0</Version>
+  <Version>1.1.0.0</Version>
   <ProviderName>D.E. Foxx &amp; Associates</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Email Style (A.Y. edition)"/>
@@ -68,6 +68,36 @@
                       <FunctionName>previewStyle</FunctionName>
                     </Action>
                   </Control>
+                  <Control xsi:type="Button" id="vstxFormalButton">
+                    <Label resid="FormalButton.Label"/>
+                    <Supertip>
+                      <Title resid="FormalButton.Label"/>
+                      <Description resid="FormalButton.Tooltip"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.16x16"/>
+                      <bt:Image size="32" resid="Icon.32x32"/>
+                      <bt:Image size="80" resid="Icon.80x80"/>
+                    </Icon>
+                    <Action xsi:type="ExecuteFunction">
+                      <FunctionName>useFormalSignature</FunctionName>
+                    </Action>
+                  </Control>
+                  <Control xsi:type="Button" id="vstxSimpleButton">
+                    <Label resid="SimpleButton.Label"/>
+                    <Supertip>
+                      <Title resid="SimpleButton.Label"/>
+                      <Description resid="SimpleButton.Tooltip"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.16x16"/>
+                      <bt:Image size="32" resid="Icon.32x32"/>
+                      <bt:Image size="80" resid="Icon.80x80"/>
+                    </Icon>
+                    <Action xsi:type="ExecuteFunction">
+                      <FunctionName>useSimpleSignature</FunctionName>
+                    </Action>
+                  </Control>
                   <Control xsi:type="Button" id="vstxSettingsButton">
                     <Label resid="SettingsButton.Label"/>
                     <Supertip>
@@ -103,6 +133,36 @@
                     </Icon>
                     <Action xsi:type="ExecuteFunction">
                       <FunctionName>previewStyle</FunctionName>
+                    </Action>
+                  </Control>
+                  <Control xsi:type="Button" id="vstxMeetingFormalButton">
+                    <Label resid="FormalButton.Label"/>
+                    <Supertip>
+                      <Title resid="FormalButton.Label"/>
+                      <Description resid="FormalButton.Tooltip"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.16x16"/>
+                      <bt:Image size="32" resid="Icon.32x32"/>
+                      <bt:Image size="80" resid="Icon.80x80"/>
+                    </Icon>
+                    <Action xsi:type="ExecuteFunction">
+                      <FunctionName>useFormalSignature</FunctionName>
+                    </Action>
+                  </Control>
+                  <Control xsi:type="Button" id="vstxMeetingSimpleButton">
+                    <Label resid="SimpleButton.Label"/>
+                    <Supertip>
+                      <Title resid="SimpleButton.Label"/>
+                      <Description resid="SimpleButton.Tooltip"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.16x16"/>
+                      <bt:Image size="32" resid="Icon.32x32"/>
+                      <bt:Image size="80" resid="Icon.80x80"/>
+                    </Icon>
+                    <Action xsi:type="ExecuteFunction">
+                      <FunctionName>useSimpleSignature</FunctionName>
                     </Action>
                   </Control>
                   <Control xsi:type="Button" id="vstxMeetingSettingsButton">
@@ -151,10 +211,14 @@
           <bt:String id="GroupLabel" DefaultValue="Email style A.Y."/>
           <bt:String id="PreviewButton.Label" DefaultValue="Apply email style"/>
           <bt:String id="SettingsButton.Label" DefaultValue="Email style settings"/>
+          <bt:String id="FormalButton.Label" DefaultValue="Formal signature"/>
+          <bt:String id="SimpleButton.Label" DefaultValue="Simple sign-off"/>
         </bt:ShortStrings>
         <bt:LongStrings>
           <bt:String id="PreviewButton.Tooltip" DefaultValue="Restyle this draft now so you can see how it will look before sending."/>
           <bt:String id="MeetingPreviewButton.Tooltip" DefaultValue="Restyle this invite now so you can see how it will look before sending."/>
+          <bt:String id="FormalButton.Tooltip" DefaultValue="Style this draft now with your full signature, whatever the default would be."/>
+          <bt:String id="SimpleButton.Tooltip" DefaultValue="Style this draft now with your short sign-off, whatever the default would be."/>
           <bt:String id="SettingsButton.Tooltip" DefaultValue="Your signature, the smart-formatting switches and a guide to what you can type."/>
         </bt:LongStrings>
       </Resources>
